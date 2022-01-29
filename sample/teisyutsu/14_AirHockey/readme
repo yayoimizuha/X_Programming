@@ -1,0 +1,17 @@
+how to play:
+player1
+i:上
+k:下
+j:左
+l:右
+
+player2
+w:上
+s:下
+a:左
+d:右
+
+
+conpile command:
+(at XwindowFree)
+g++ main.cpp WindowUtil/XWindow.cpp WindowUtil/XWindow.h bits/stdc++.h WindowUtil/TimeBehavior.h WindowUtil/TimeBehaveManager.h WindowUtil/TimeBehaveManager.cpp WindowUtil/ButtonListener.h WindowUtil/KeyboardListener.h WindowUtil/Behaviors/Tests/TbTest.cpp WindowUtil/Behaviors/Tests/TbTest.h WindowUtil/Tests/ButtonListenerTest.cpp WindowUtil/Tests/ButtonListenerTest.h AirHockey/GameScene/Objects/Pack.cpp AirHockey/GameScene/Objects/Pack.h AirHockey/GameScene/Objects/Mallet.cpp AirHockey/GameScene/Objects/Mallet.h AirHockey/GameScene/Objects/PackBuilder.cpp AirHockey/GameScene/Objects/PackBuilder.h AirHockey/GameScene/Objects/MalletBuilder.cpp AirHockey/GameScene/Objects/MalletBuilder.h AirHockey/GameScene/GameManager.cpp AirHockey/GameScene/GameManager.h AirHockey/GameScene/Objects/KeyOptions.h AirHockey/GameScene/HockeyCollider.cpp AirHockey/GameScene/HockeyCollider.h AirHockey/GameScene/Objects/Wall.cpp AirHockey/GameScene/Objects/Wall.h AirHockey/GameScene/Objects/TableBuilder.cpp AirHockey/GameScene/Objects/TableBuilder.h AirHockey/GameScene/ScoreManager.cpp AirHockey/GameScene/ScoreManager.h AirHockey/ReTryScene/ReTryScene.cpp AirHockey/ReTryScene/ReTryScene.h -l X11
