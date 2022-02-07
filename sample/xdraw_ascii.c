@@ -39,7 +39,7 @@ int main(int argc,char **argv){
     XNextEvent(dpy,&e);
     switch(e.type){
     case ButtonPress:
-      printf("x=%d, y=%d, button=%d", e.xbutton.x, e.xbutton.y, e.xbutton.button);
+      printf("x=%d, y=%d, button=%d\n", e.xbutton.x, e.xbutton.y, e.xbutton.button);
       if(e.xbutton.button==3)return(0);
       break;
       case ButtonRelease:
