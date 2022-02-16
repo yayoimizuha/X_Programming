@@ -126,7 +126,7 @@ void main(int argc, char **argv) {
     XEvent e;
 
     dpy = XOpenDisplay("");
-    root = DefaultRootWindow (dpy);
+m    root = DefaultRootWindow (dpy);
     screen = DefaultScreen (dpy);
     white = WhitePixel (dpy, screen);
     black = BlackPixel (dpy, screen);

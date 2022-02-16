@@ -18,6 +18,7 @@
 #include <xorg/joystick-properties.h>
 #include <time.h>
 #include <unistd.h>
+#include <python3.9/Python.h>
 
 #define BORDER 2
 #define WIDTH 1000
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
     XPoint *points = malloc(sizeof(XPoint) * WIDTH * HIGHT) + 100;
 
     w = XCreateSimpleWindow(dpy, root, 100, 100, WIDTH, HIGHT, BORDER, black, white);
-    //gc = XCreateGC(dpy, w, 0, NULL);
+    gc = XCreateGC(dpy, w, 0, NULL);
     GC multi_gc[omp_get_max_threads()];
     for (int i = 0; i < omp_get_max_threads(); ++i) {
         multi_gc[i] = XCreateGC(dpy, w, 0, NULL);
