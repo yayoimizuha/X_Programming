@@ -25,19 +25,6 @@ void ThrowWandException(const MagickWand *wand) {
 }
 
 int main(int argc, char **argv) {
-// #define ThrowWandException(wand) \
-// { \
-//   char \
-//     *description; \
-//  \
-//   ExceptionType \
-//     severity; \
-//  \
-//   description=MagickGetException(wand,&severity); \
-//   (void) fprintf(stderr,"%s %s %lu %s\n",GetMagickModule(),description); \
-//   description=(char *) MagickRelinquishMemory(description); \
-//   exit(-1); \
-// }
 
     MagickBooleanType status;
 
@@ -87,10 +74,11 @@ int main(int argc, char **argv) {
     DestroyMagickWand(magick_wand);
     MagickWandTerminus();
     free(blob);
+
     /******************    Load Image   *********************/
 
-    unsigned int window_width = image_width;
-    unsigned int window_height = image_height;
+    unsigned int window_width = image_width + 80;
+    unsigned int window_height = image_height + 80;
 
     Display *display;
     XInitThreads();
@@ -127,21 +115,26 @@ int main(int argc, char **argv) {
         window_height = windowAttributes.height;
         //printf("%d %d %d %d\n", window_width, window_height, DisplayWidth(display, screen),
         //       DisplayHeight(display, screen));
+        unsigned short black_cell = 100;
+        unsigned short white_cell = 150;
+        unsigned short cell_size = 20;
         for (int i = 0; i <= windowAttributes.width; i++) {
             for (int j = 0; j <= windowAttributes.height; j++) {
-                color = (((i / 50) % 2 - (j / 50) % 2 + 2) % 2) *
-                        (256 * 256 * 100 + 256 * 100 + 100) + (256 * 256 * 60) + (256 * 60) + (60);
+                color = (((i / cell_size) % 2 - (j / cell_size) % 2 + 2) % 2) *
+                        (256 * 256 + 256 + 1) * black_cell + (256 * 256 + 256 + 1) * white_cell;
                 XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
                 XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
             }
         }
-        for (int i = 0; i <= image_width; i++) {
+        for (int i = 0; i < image_width; i++) {
             for (int j = 0; j < image_height; j++) {
                 color = pixel_array[j * image_width + i].red * 256 * 256 +
                         pixel_array[j * image_width + i].green * 256 +
                         pixel_array[j * image_width + i].blue;
                 XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i + 100, j + 100);
+                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()],
+                           i + (window_width - image_width) / 2,
+                           j + (window_height - image_height) / 2);
 
             }
         }

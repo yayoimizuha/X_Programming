@@ -11,6 +11,8 @@ endif ()
 
 find_package(EXPAT 2.2.8 MODULE REQUIRED)
 
+set(MAGICKCORE_QUANTUM_DEPTH 16)
+
 add_executable(X_Programming main.c)
 target_link_libraries(X_Programming X11)
 target_link_libraries(X_Programming m)
