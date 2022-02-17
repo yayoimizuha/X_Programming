@@ -186,8 +186,8 @@ int main(int argc, char **argv) {
         affineFunc.A1 = -0.5;
         affineFunc.A2 = 0.5;
         affineFunc.A3 = 1;
-        affineFunc.dx = -100;
-        affineFunc.dy = 0;
+        affineFunc.dx = (double) image_width / -2;
+        affineFunc.dy = (double) image_height / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
             struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
                                                         image_width, image_height);
             for (int i = 0; i < image_width; i++) {
                 for (int j = 0; j < image_height; j++) {
-                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * window_width + i],
+                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * image_width + i],
                                                          image_width, image_height,
                                                          window_width, window_height,
                                                          black_cell, white_cell, cell_size);
@@ -268,7 +268,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     iA[1] = A[1] / det;
     iA[2] = A[2] / det;
     iA[3] = A[0] / det;
-    struct rgb *affine_img, *affined_img;
+    struct rgb *affine_img, *affined_img, *test_img;
     affine_img = malloc(sizeof(struct rgb) * window_width * window_height);
     affined_img = malloc(sizeof(struct rgb) * window_width * window_height);
 
@@ -286,25 +286,26 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
                        i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
         }
     }
-    return affine_img;
-    for (oY = 0; oY < window_height; oY++) {
-        noY = oY - (int) window_height / 2;
-        for (oX = 0; oX < window_width; oX++) {
-            noX = oX - (int) window_width / 2;
+    // return affine_img;
+    test_img = malloc(sizeof(struct rgb) * image_height * image_width * 10);
+    for (oY = 0; oY < image_height; oY++) {
+        noY = oY - (int) image_height / 2;
+        for (oX = 0; oX < image_width; oX++) {
+            noX = oX - (int) image_width / 2;
 
             rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
-                 window_width / 2;
-            ix = (int) (rx + 0.5);
-            if (ix >= window_width || ix < 0) continue;
-            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
-                 window_height / 2;
-            iy = (int) (ry + 0.5);
-            if (iy >= window_height || iy < 0)continue;
-            affined_img[oX + oY * window_width] = affine_img[ix + iy * window_width];
+                 image_width / 2;
 
+            ix = (int) (rx + 0.5);
+            if (ix >= image_width || ix < 0) continue;
+            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
+                 image_height / 2;
+            iy = (int) (ry + 0.5);
+            if (iy >= image_height || iy < 0)continue;
+            test_img[oX + oY * image_width] = base_img[ix + iy * image_width];
         }
     }
-    return affined_img;
+    return test_img;
 
 
 }
