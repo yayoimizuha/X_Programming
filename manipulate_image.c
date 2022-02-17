@@ -105,7 +105,17 @@ int main(int argc, char **argv) {
 
     Colormap colormap = XDefaultColormap(display, 0);
 
-    Pixmap pixmap = XCreatePixmap(display, window, DisplayWidth(display, screen), DisplayHeight(display, screen),
+    int palette_size;
+    if (DisplayWidth(display, screen) > DisplayHeight(display, screen)) {
+        palette_size = DisplayWidth(display, screen);
+    } else palette_size = DisplayHeight(display, screen);
+    if (palette_size < image_width) {
+        palette_size = image_width;
+    } else if (palette_size < image_height) {
+        palette_size = image_height;
+    }
+
+    Pixmap pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3,
                                   24);
     unsigned int color, count = 2;
     while (1) {
