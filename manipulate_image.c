@@ -132,9 +132,7 @@ int main(int argc, char **argv) {
                         pixel_array[j * image_width + i].green * 256 +
                         pixel_array[j * image_width + i].blue;
                 XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()],
-                           i + (window_width - image_width) / 2,
-                           j + (window_height - image_height) / 2);
+                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
 
             }
         }
