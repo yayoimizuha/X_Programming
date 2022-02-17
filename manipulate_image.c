@@ -2,6 +2,8 @@
 // Created by tomokazu on 2022/02/16.
 //
 
+// https://daeudaeu.com/affine/#i-10
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <wand/MagickWand.h>
@@ -11,6 +13,9 @@
 #include <omp.h>
 #include <math.h>
 #include <time.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <string.h>
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
@@ -21,8 +26,35 @@ void ThrowWandException(const MagickWand *wand) {
     description = MagickGetException(wand, severity);
     (void) fprintf(stderr, "%s %s %lu %s\n", GetMagickModule(), description);
     description = (char *) MagickRelinquishMemory(description);
+    printf("%s", description);
     exit(-1);
 }
+
+struct rgb {
+    unsigned short red;
+    unsigned short green;
+    unsigned short blue;
+    unsigned short alpha;
+};
+struct affine_func {
+    double A0;
+    double A1;
+    double A2;
+    double A3;
+    double dx;
+    double dy;
+};
+
+const struct rgb transparent = {0, 0, 0, 0};
+
+struct rgb alpha_marge(int x, int y, struct rgb color,
+                       unsigned int image_width, unsigned int image_height,
+                       unsigned int window_width, unsigned int window_height,
+                       unsigned short black_cell, unsigned short white_cell, unsigned short cell_size);
+
+struct rgb *process_img(struct rgb *base_img, struct affine_func,
+                        unsigned int window_width, unsigned int window_height,
+                        unsigned int image_width, unsigned int image_height);
 
 int main(int argc, char **argv) {
 
@@ -47,16 +79,19 @@ int main(int argc, char **argv) {
     size_t image_height = MagickGetImageHeight(magick_wand);
     size_t total_pixels = image_height * image_width;
     unsigned char *blob = malloc(total_pixels * sizeof(unsigned char) * 4);
+    if (blob == NULL) {
+        printf("memory error.\n");
+        return -1;
+    }
 
     MagickExportImagePixels(magick_wand, 0, 0, image_width, image_height, "RGBA", CharPixel, blob);
 
-    struct rgb {
-        unsigned short red;
-        unsigned short green;
-        unsigned short blue;
-        unsigned short alpha;
-    };
+
     struct rgb *pixel_array = malloc(total_pixels * sizeof(struct rgb));
+    if (pixel_array == NULL) {
+        printf("memory error.\n");
+        return -1;
+    }
 
     for (int i = 0; i < total_pixels; ++i) {
         pixel_array[i].red = blob[i * 4 + 0];
@@ -79,10 +114,11 @@ int main(int argc, char **argv) {
 
     unsigned int window_width = image_width + 80;
     unsigned int window_height = image_height + 80;
+    unsigned int before_ww, before_wh, before_iw, before_ih;
 
     Display *display;
     XInitThreads();
-    printf("%d", omp_get_max_threads());
+    printf("Thread: %d\n", omp_get_max_threads());
     omp_set_num_threads(omp_get_max_threads());
     Window window;
     Window root;
@@ -105,7 +141,8 @@ int main(int argc, char **argv) {
 
     Colormap colormap = XDefaultColormap(display, 0);
 
-    int palette_size;
+    size_t palette_size;
+    bool image_change = True, window_change = True;
     if (DisplayWidth(display, screen) > DisplayHeight(display, screen)) {
         palette_size = DisplayWidth(display, screen);
     } else palette_size = DisplayHeight(display, screen);
@@ -115,42 +152,193 @@ int main(int argc, char **argv) {
         palette_size = image_height;
     }
 
-    Pixmap pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3,
-                                  24);
+    Pixmap pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3, 24);
+    Pixmap back_pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3, 24);
+
+
     unsigned int color, count = 2;
     while (1) {
+        XSelectInput(display, window, ButtonPressMask | ButtonReleaseMask | KeyPressMask);
         XWindowAttributes windowAttributes;
         XGetWindowAttributes(display, window, &windowAttributes);
         window_width = windowAttributes.width;
         window_height = windowAttributes.height;
         //printf("%d %d %d %d\n", window_width, window_height, DisplayWidth(display, screen),
         //       DisplayHeight(display, screen));
-        unsigned short black_cell = 100;
-        unsigned short white_cell = 150;
+        unsigned short black_cell = 35;
+        unsigned short white_cell = 220;
         unsigned short cell_size = 20;
-        for (int i = 0; i <= windowAttributes.width; i++) {
-            for (int j = 0; j <= windowAttributes.height; j++) {
-                color = (((i / cell_size) % 2 - (j / cell_size) % 2 + 2) % 2) *
-                        (256 * 256 + 256 + 1) * black_cell + (256 * 256 + 256 + 1) * white_cell;
-                XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
+        window_change = window_width != before_ww || window_height != before_wh;
+        image_change = image_width != before_iw || image_height != before_ih;
+        if (window_change) {
+            printf("[%ld]\tWindow Changed\n", time(NULL));
+            for (int i = 0; i <= windowAttributes.width; i++) {
+                for (int j = 0; j <= windowAttributes.height; j++) {
+                    color = (((i / cell_size) % 2 - (j / cell_size) % 2 + 2) % 2) *
+                            (256 * 256 + 256 + 1) * black_cell + (256 * 256 + 256 + 1) * white_cell;
+                    XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
+                    XDrawPoint(display, back_pixmap, Multi_GC[omp_get_thread_num()], i, j);
+                }
             }
         }
-        for (int i = 0; i < image_width; i++) {
-            for (int j = 0; j < image_height; j++) {
-                color = pixel_array[j * image_width + i].red * 256 * 256 +
-                        pixel_array[j * image_width + i].green * 256 +
-                        pixel_array[j * image_width + i].blue;
-                XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
+        struct affine_func affineFunc;
+        affineFunc.A0 = 0.5;
+        affineFunc.A1 = -0.5;
+        affineFunc.A2 = 0.5;
+        affineFunc.A3 = 1;
+        affineFunc.dx = -100;
+        affineFunc.dy = 0;
+        if (image_change || window_change) {
+            if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
+            struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
+                                                        window_width, window_height,
+                                                        image_width, image_height);
+            for (int i = 0; i < image_width; i++) {
+                for (int j = 0; j < image_height; j++) {
+                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * window_width + i],
+                                                         image_width, image_height,
+                                                         window_width, window_height,
+                                                         black_cell, white_cell, cell_size);
+                    color = mixed_color.red * 256 * 256 +
+                            mixed_color.green * 256 +
+                            mixed_color.blue;
+                    XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
+                    XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
 
+                }
             }
+            XCopyArea(display, back_pixmap, window, Multi_GC[omp_get_thread_num()],
+                      0, 0,
+                      window_width, window_height,
+                      0, 0);
+
+            XCopyArea(display, pixmap, window, Multi_GC[omp_get_thread_num()],
+                      0, 0,
+                      image_width, image_height,
+                      (int) (window_width - image_width) / 2, (int) (window_height - image_height) / 2);
         }
-        XCopyArea(display, pixmap, window, Multi_GC[omp_get_thread_num()], 0, 0, window_width, window_height, 0, 0);
+
+
+        before_ww = window_width, before_wh = window_height, before_iw = image_width, before_ih = image_height;
+        usleep(15000);
+
     }
 
 
     return 0;
 }
+
+struct rgb alpha_marge(int x, int y, struct rgb color,
+                       unsigned int image_width, unsigned int image_height,
+                       unsigned int window_width, unsigned int window_height,
+                       unsigned short black_cell, unsigned short white_cell, unsigned short cell_size) {
+    x += (int) (window_width - image_width) / 2;
+    y += (int) (window_height - image_height) / 2;
+    struct rgb mixed_color;
+    mixed_color.red = (color.alpha * color.red +
+                       (255 - color.alpha) *
+                       ((((x / cell_size) % 2 - (y / cell_size) % 2 + 2) % 2) * black_cell + white_cell))
+                      / 255;
+    mixed_color.green = (color.alpha * color.green +
+                         (255 - color.alpha) *
+                         ((((x / cell_size) % 2 - (y / cell_size) % 2 + 2) % 2) * black_cell + white_cell))
+                        / 255;
+    mixed_color.blue = (color.alpha * color.blue +
+                        (255 - color.alpha) *
+                        ((((x / cell_size) % 2 - (y / cell_size) % 2 + 2) % 2) * black_cell + white_cell))
+                       / 255;
+    mixed_color.alpha = 0;
+    return mixed_color;
+}
+
+
+struct rgb *process_img(struct rgb *base_img, struct affine_func option,
+                        unsigned int window_width, unsigned int window_height,
+                        unsigned int image_width, unsigned int image_height) {
+    double A[4], iA[4];
+    A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
+    int m = (int) option.dx, n = (int) option.dy;
+    int oX, oY, noX, noY, ix, iy, rx, ry, c;
+    double det = A[0] * A[3] - A[1] * A[2];
+    if (det == 0) {
+        printf("divided zero.\n");
+        return 0;
+    }
+    iA[0] = A[3] / det;
+    iA[1] = A[1] / det;
+    iA[2] = A[2] / det;
+    iA[3] = A[0] / det;
+    struct rgb *affine_img, *affined_img;
+    affine_img = malloc(sizeof(struct rgb) * window_width * window_height);
+    affined_img = malloc(sizeof(struct rgb) * window_width * window_height);
+
+    for (int i = 0; i < window_width; i++) {
+        for (int j = 0; j < window_height; j++) {
+            affine_img[j * window_width + i] = transparent;
+            affined_img[j * window_width + i] = transparent;
+        }
+    }
+    for (int i = 0; i < image_width; i++) {
+        for (int j = 0; j < image_height; j++) {
+            if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
+            if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
+            affine_img[(j + ((int) window_height - j) / 2) * image_width +
+                       i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
+        }
+    }
+    return affine_img;
+    for (oY = 0; oY < window_height; oY++) {
+        noY = oY - (int) window_height / 2;
+        for (oX = 0; oX < window_width; oX++) {
+            noX = oX - (int) window_width / 2;
+
+            rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
+                 window_width / 2;
+            ix = (int) (rx + 0.5);
+            if (ix >= window_width || ix < 0) continue;
+            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
+                 window_height / 2;
+            iy = (int) (ry + 0.5);
+            if (iy >= window_height || iy < 0)continue;
+            affined_img[oX + oY * window_width] = affine_img[ix + iy * window_width];
+
+        }
+    }
+    return affined_img;
+
+
+}
+
+//struct rgb *process_img(struct rgb *base_img, unsigned int base_width, unsigned int base_height) {
+//    struct rgb OUT_RANGE = {255, 255, 255, 255};
+//    int i, j;
+//    int nRow, nCol;
+//    double dRow, dCol;
+//    int nOutRow, nOutCol, nInRow, nInCol;
+//    int nSample;
+//    double daAffCoef[6];
+//    struct rgb *return_array = malloc(base_width * base_height * sizeof(struct rgb));
+//    for (i = 0; i < nOutRow; i++) {
+//        for (j = 0; j < nOutCol; j++) {
+//            dCol = daAffCoef[0] * (double) j + daAffCoef[1] * (double) i + daAffCoef[2];
+//            dRow = daAffCoef[3] * (double) j + daAffCoef[4] * (double) i + daAffCoef[5];
+//            nRow = (int) floor(dRow + 0.5);
+//            nCol = (int) floor(dCol + 0.5);
+//
+//            //範囲のチェック
+//            if (nCol < 0 || nCol >= nInCol || nRow < 0 || nRow >= nInRow) {
+//                for (int k = 0; k < nSample; k++) {
+//                    return_array[i * nOutCol * nSample + j * nSample + k] = OUT_RANGE;
+//                }
+//            } else {
+//                for (int k = 0; k < nSample; k++) {
+//                    return_array[i * nOutCol * nSample + j * nSample + k] =
+//                            base_img[nRow * nInCol * nSample + nCol * nSample + k];
+//                }
+//            }
+//        }
+//    }
+//    return return_array;
+//}
 
 #pragma clang diagnostic pop
