@@ -182,12 +182,14 @@ int main(int argc, char **argv) {
             }
         }
         struct affine_func affineFunc;
-        affineFunc.A0 = 0.5;
-        affineFunc.A1 = -0.5;
-        affineFunc.A2 = 0.5;
-        affineFunc.A3 = 1;
-        affineFunc.dx = (double) image_width / -2;
-        affineFunc.dy = (double) image_height / 2;
+        double r = (-30 * M_PI) / 180;
+        affineFunc.A0 = cos(r);
+        affineFunc.A1 = -sin(r);
+        affineFunc.A2 = sin(r);
+        affineFunc.A3 = cos(r);
+        affineFunc.dx = -(int) image_width;
+        affineFunc.dy = (float) image_height / 2;
+        (double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
             struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
@@ -257,7 +259,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
                         unsigned int image_width, unsigned int image_height) {
     double A[4], iA[4];
     A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
-    int m = (int) option.dx, n = (int) option.dy;
+    int m = (int) (option.dx * A[0]), n = (int) (option.dy * A[3]);
     int oX, oY, noX, noY, ix, iy, rx, ry, c;
     double det = A[0] * A[3] - A[1] * A[2];
     if (det == 0) {
