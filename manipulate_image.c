@@ -196,8 +196,7 @@ int main(int argc, char **argv) {
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
             struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
-                                                        window_width, window_height,
-                                                        image_width, image_height);
+                                                        palette_size, image_width, image_height);
             for (int i = 0; i < image_width; i++) {
                 for (int j = 0; j < image_height; j++) {
                     struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * image_width + i],
@@ -225,7 +224,7 @@ int main(int argc, char **argv) {
 
 
         before_ww = window_width, before_wh = window_height, before_iw = image_width, before_ih = image_height;
-        usleep(15000);
+        usleep(150000);
 
     }
 
@@ -273,9 +272,41 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     iA[2] = A[2] / det;
     iA[3] = A[0] / det;
     struct rgb *affine_img, *affined_img, *test_img;
-    affine_img = malloc(sizeof(struct rgb) * palette_size * palette_size);
-    affined_img = malloc(sizeof(struct rgb) * palette_size * palette_size);
+    affine_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
+    affined_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
+    if (affined_img == NULL || affine_img == NULL)exit(-1);
+    for (int k = 0; k < palette_size * palette_size; k++) {
+        affine_img[k] = affined_img[k] = transparent;
+    }
+    printf("%lu\n", sizeof(struct rgb) * palette_size * palette_size);
+    int ou, a, b;
+    for (int i = 0; i < image_height; i++) {
+        a = (palette_size - image_height) / 2 + i;
+        for (int j = 0; j < image_width; j++) {
+            b = (palette_size - image_width) / 2 + j;
+            ou = b * palette_size + a;
+            printf("%u\t%d\n", ou, j * image_width + i);
+            affine_img[ou] = base_img[j * image_width + i];
+        }
+    }
+    for (oY = 0; oY < palette_size; oY++) {
+        noY = oY - (int) palette_size / 2;
+        for (oX = 0; oX < palette_size; oX++) {
+            noX = oX - (int) palette_size / 2;
 
+            rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
+                 palette_size / 2;
+
+            ix = (int) (rx + 0.5);
+            if (ix >= palette_size || ix < 0) continue;
+            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
+                 palette_size / 2;
+            iy = (int) (ry + 0.5);
+            if (iy >= palette_size || iy < 0)continue;
+            affined_img[oX + oY * palette_size] = affine_img[ix + iy * palette_size];
+        }
+    }
+    return affined_img;
     // for (int i = 0; i < window_width; i++) {
     //     for (int j = 0; j < window_height; j++) {
     //         affine_img[j * window_width + i] = transparent;
