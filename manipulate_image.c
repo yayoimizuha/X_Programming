@@ -53,8 +53,7 @@ struct rgb alpha_marge(int x, int y, struct rgb color,
                        unsigned short black_cell, unsigned short white_cell, unsigned short cell_size);
 
 struct rgb *process_img(struct rgb *base_img, struct affine_func,
-                        unsigned int window_width, unsigned int window_height,
-                        unsigned int image_width, unsigned int image_height);
+                        unsigned int palette_size, unsigned int image_width, unsigned int image_height);
 
 int main(int argc, char **argv) {
 
@@ -182,13 +181,17 @@ int main(int argc, char **argv) {
             }
         }
         struct affine_func affineFunc;
-        double r = (-30 * M_PI) / 180;
+        double r = (0 * M_PI) / 180;
         affineFunc.A0 = cos(r);
         affineFunc.A1 = -sin(r);
         affineFunc.A2 = sin(r);
         affineFunc.A3 = cos(r);
+        affineFunc.A0 = 2;
+        affineFunc.A1 = 0;
+        affineFunc.A2 = 0;
+        affineFunc.A3 = 2;
         affineFunc.dx = -(int) image_width;
-        affineFunc.dy = (float) image_height / 2;
+        affineFunc.dy = 0;
         (double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
@@ -255,8 +258,7 @@ struct rgb alpha_marge(int x, int y, struct rgb color,
 
 
 struct rgb *process_img(struct rgb *base_img, struct affine_func option,
-                        unsigned int window_width, unsigned int window_height,
-                        unsigned int image_width, unsigned int image_height) {
+                        unsigned int palette_size, unsigned int image_width, unsigned int image_height) {
     double A[4], iA[4];
     A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
     int m = (int) (option.dx * A[0]), n = (int) (option.dy * A[3]);
@@ -271,23 +273,23 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     iA[2] = A[2] / det;
     iA[3] = A[0] / det;
     struct rgb *affine_img, *affined_img, *test_img;
-    affine_img = malloc(sizeof(struct rgb) * window_width * window_height);
-    affined_img = malloc(sizeof(struct rgb) * window_width * window_height);
+    affine_img = malloc(sizeof(struct rgb) * palette_size * palette_size);
+    affined_img = malloc(sizeof(struct rgb) * palette_size * palette_size);
 
-    for (int i = 0; i < window_width; i++) {
-        for (int j = 0; j < window_height; j++) {
-            affine_img[j * window_width + i] = transparent;
-            affined_img[j * window_width + i] = transparent;
-        }
-    }
-    for (int i = 0; i < image_width; i++) {
-        for (int j = 0; j < image_height; j++) {
-            if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
-            if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
-            affine_img[(j + ((int) window_height - j) / 2) * image_width +
-                       i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
-        }
-    }
+    // for (int i = 0; i < window_width; i++) {
+    //     for (int j = 0; j < window_height; j++) {
+    //         affine_img[j * window_width + i] = transparent;
+    //         affined_img[j * window_width + i] = transparent;
+    //     }
+    // }
+    // for (int i = 0; i < image_width; i++) {
+    //     for (int j = 0; j < image_height; j++) {
+    //         if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
+    //         if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
+    //         affine_img[(j + ((int) window_height - j) / 2) * image_width +
+    //                    i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
+    //     }
+    // }
     // return affine_img;
     test_img = malloc(sizeof(struct rgb) * image_height * image_width * 10);
     for (oY = 0; oY < image_height; oY++) {
