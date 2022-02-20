@@ -186,20 +186,20 @@ int main(int argc, char **argv) {
         affineFunc.A1 = -sin(r);
         affineFunc.A2 = sin(r);
         affineFunc.A3 = cos(r);
-        affineFunc.A0 = 2;
+        affineFunc.A0 = 1.0 / 3;
         affineFunc.A1 = 0;
         affineFunc.A2 = 0;
-        affineFunc.A3 = 2;
-        affineFunc.dx = -(int) image_width;
+        affineFunc.A3 = 1.0 / 3;
+        affineFunc.dx = -(int) palette_size / (affineFunc.A0 * 2);
         affineFunc.dy = 0;
         (double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
             struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
                                                         palette_size, image_width, image_height);
-            for (int i = 0; i < image_width; i++) {
-                for (int j = 0; j < image_height; j++) {
-                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * image_width + i],
+            for (int i = 0; i < palette_size; i++) {
+                for (int j = 0; j < palette_size; j++) {
+                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[i * palette_size + j],
                                                          image_width, image_height,
                                                          window_width, window_height,
                                                          black_cell, white_cell, cell_size);
@@ -207,7 +207,7 @@ int main(int argc, char **argv) {
                             mixed_color.green * 256 +
                             mixed_color.blue;
                     XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                    XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
+                    XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], j, i);
 
                 }
             }
@@ -218,8 +218,8 @@ int main(int argc, char **argv) {
 
             XCopyArea(display, pixmap, window, Multi_GC[omp_get_thread_num()],
                       0, 0,
-                      image_width, image_height,
-                      (int) (window_width - image_width) / 2, (int) (window_height - image_height) / 2);
+                      palette_size, palette_size,
+                      (int) (window_width - palette_size) / 2, (int) (window_height - palette_size) / 2);
         }
 
 
@@ -276,7 +276,8 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     affined_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
     if (affined_img == NULL || affine_img == NULL)exit(-1);
     for (int k = 0; k < palette_size * palette_size; k++) {
-        affine_img[k] = affined_img[k] = transparent;
+        affine_img[k].red = affine_img[k].green = affine_img[k].blue = affine_img[k].alpha = 50;
+        affined_img[k].red = affined_img[k].green = affined_img[k].blue = affined_img[k].alpha = 0;
     }
     printf("%lu\n", sizeof(struct rgb) * palette_size * palette_size);
     int ou, a, b;
@@ -284,9 +285,12 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
         a = (palette_size - image_height) / 2 + i;
         for (int j = 0; j < image_width; j++) {
             b = (palette_size - image_width) / 2 + j;
-            ou = b * palette_size + a;
-            printf("%u\t%d\n", ou, j * image_width + i);
-            affine_img[ou] = base_img[j * image_width + i];
+            ou = a * palette_size + b;
+            //printf("%u\t%d\n", ou, j * image_width + i);
+            affine_img[ou].red = base_img[i * image_width + j].red;
+            affine_img[ou].green = base_img[i * image_width + j].green;
+            affine_img[ou].blue = base_img[i * image_width + j].blue;
+            affine_img[ou].alpha = base_img[i * image_width + j].alpha;
         }
     }
     for (oY = 0; oY < palette_size; oY++) {
