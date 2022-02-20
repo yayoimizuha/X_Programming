@@ -2,6 +2,8 @@
 // Created by tomokazu on 2022/02/16.
 //
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EndlessLoop"
 // https://daeudaeu.com/affine/#i-10
 
 #include <stdio.h>
@@ -180,22 +182,21 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        struct affine_func affineFunc;
-        double r = (0 * M_PI) / 180;
-        affineFunc.A0 = cos(r);
-        affineFunc.A1 = -sin(r);
-        affineFunc.A2 = sin(r);
-        affineFunc.A3 = cos(r);
-        affineFunc.A0 = 1.0 / 3;
-        affineFunc.A1 = 0;
-        affineFunc.A2 = 0;
-        affineFunc.A3 = 1.0 / 3;
-        affineFunc.dx = -(int) palette_size / (affineFunc.A0 * 2);
-        affineFunc.dy = 0;
-        (double) (window_height * 2 - image_height) / 2;
+        struct affine_func affineFuncRotate,affineFuncMove,affineFuncResize;
+        double r = (6 * M_PI) / 180;
+        affineFuncRotate.A0 = cos(r);
+        affineFuncRotate.A1 = -sin(r);
+        affineFuncRotate.A2 = sin(r);
+        affineFuncRotate.A3 = cos(r);
+        affineFuncRotate.A0 = 1.0 / 2;
+        affineFuncRotate.A1 = 0;
+        affineFuncRotate.A2 = 0;
+        affineFuncRotate.A3 = 1.0 / 2;
+        affineFuncRotate.dx = -(int)palette_size;//-(int) palette_size / (affineFunc.A0 * 2);
+        affineFuncRotate.dy = 0;//(double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
-            struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
+            struct rgb *manipulated_array = process_img(pixel_array, affineFuncRotate,
                                                         palette_size, image_width, image_height);
             for (int i = 0; i < palette_size; i++) {
                 for (int j = 0; j < palette_size; j++) {
@@ -277,7 +278,8 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     if (affined_img == NULL || affine_img == NULL)exit(-1);
     for (int k = 0; k < palette_size * palette_size; k++) {
         affine_img[k].red = affine_img[k].green = affine_img[k].blue = affine_img[k].alpha = 50;
-        affined_img[k].red = affined_img[k].green = affined_img[k].blue = affined_img[k].alpha = 0;
+        affined_img[k].red = affined_img[k].green = affined_img[k].blue = affined_img[k].alpha = 60;
+        affined_img[k].red = 200;
     }
     printf("%lu\n", sizeof(struct rgb) * palette_size * palette_size);
     int ou, a, b;
@@ -381,4 +383,5 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
 //    return return_array;
 //}
 
+#pragma clang diagnostic pop
 #pragma clang diagnostic pop
