@@ -261,17 +261,94 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
                         unsigned int palette_size, unsigned int image_width, unsigned int image_height) {
     double A[4], iA[4];
     A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
-    int m = (int) (option.dx * A[0]), n = (int) (option.dy * A[3]);
-    int oX, oY, noX, noY, ix, iy, rx, ry, c;
-    double det = A[0] * A[3] - A[1] * A[2];
+
+    int oX, oY, noX, noY, ix, iy, rx, ry, c, i, j, k;
+    int PosMove = palette_size / 2;
+    double Pos[3][3] = {
+            {1, 0, PosMove},
+            {0, 1, PosMove},
+            {0, 0, 1}
+    };
+    double Resize[3][3] = {
+            {4, 0, 0},
+            {0, 4, 0},
+            {0, 0, 1}
+    };
+    double Pos_Resize[3][3];
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            Pos_Resize[i][j] = 0;
+            for (k = 0; k < 3; k++) {
+                Pos_Resize[i][j] += Pos[i][k] * Resize[k][j];
+            }
+        }
+    }
+    double Move[3][3] = {
+            {1, 0, 100},
+            {0, 1, 100},
+            {0, 0, 1}
+    };
+    double Pos_Resize_Move[3][3];
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            Pos_Resize_Move[i][j] = 0;
+            for (k = 0; k < 3; k++) {
+                Pos_Resize_Move[i][j] += Pos_Resize[i][k] * Move[k][j];
+            }
+        }
+    }
+    double rotate = 12;
+    rotate = rotate * M_PI / 180;
+    double Rotate[3][3] = {
+            {cos(rotate),  sin(rotate), 0},
+            {-sin(rotate), cos(rotate), 0},
+            {0,            0,           1}
+    };
+    double Pos_Resize_Move_Rotate[3][3];
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            Pos_Resize_Move_Rotate[i][j] = 0;
+            for (k = 0; k < 3; k++) {
+                Pos_Resize_Move_Rotate[i][j] += Pos_Resize_Move[i][k] * Rotate[k][j];
+            }
+        }
+    }
+
+    double DePos[3][3] = {
+            {1, 0, -PosMove},
+            {0, 1, -PosMove},
+            {0, 0, 1}
+    };
+
+    double Matrix[3][3];
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            Matrix[i][j] = 0;
+            for (k = 0; k < 3; k++) {
+                Matrix[i][j] += Pos_Resize_Move_Rotate[i][k] * DePos[k][j];
+            }
+        }
+    }
+    double det = Matrix[0][0] * Matrix[1][1] * Matrix[2][2]
+                 + Matrix[0][1] * Matrix[1][2] * Matrix[2][0]
+                 + Matrix[0][2] * Matrix[1][0] * Matrix[2][1]
+                 - Matrix[0][2] * Matrix[1][1] * Matrix[2][0]
+                 - Matrix[0][1] * Matrix[1][0] * Matrix[2][2]
+                 - Matrix[0][0] * Matrix[1][2] * Matrix[2][1];
     if (det == 0) {
         printf("divided zero.\n");
         return 0;
     }
-    iA[0] = A[3] / det;
-    iA[1] = A[1] / det;
-    iA[2] = A[2] / det;
-    iA[3] = A[0] / det;
+    double Inv_Matrix[3][3];
+    Inv_Matrix[0][0] = (Matrix[1][1] * Matrix[2][2] - Matrix[1][2] * Matrix[2][1]) / det;
+    Inv_Matrix[0][1] = -(Matrix[0][1] * Matrix[2][2] - Matrix[0][2] * Matrix[2][1]) / det;
+    Inv_Matrix[0][2] = (Matrix[0][1] * Matrix[1][2] - Matrix[0][2] * Matrix[1][1]) / det;
+    Inv_Matrix[1][0] = -(Matrix[1][0] * Matrix[2][2] - Matrix[1][2] * Matrix[2][0]) / det;
+    Inv_Matrix[1][1] = (Matrix[0][0] * Matrix[2][2] - Matrix[0][2] * Matrix[2][0]) / det;
+    Inv_Matrix[1][2] = -(Matrix[0][0] * Matrix[1][2] - Matrix[0][2] * Matrix[1][0]) / det;
+    Inv_Matrix[2][0] = (Matrix[1][0] * Matrix[2][1] - Matrix[1][1] * Matrix[2][0]) / det;
+    Inv_Matrix[2][1] = -(Matrix[0][0] * Matrix[2][1] - Matrix[0][1] * Matrix[2][0]) / det;
+    Inv_Matrix[2][2] = (Matrix[0][0] * Matrix[1][1] - Matrix[0][1] * Matrix[1][0]) / det;
     struct rgb *affine_img, *affined_img, *test_img;
     affine_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
     affined_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
@@ -295,93 +372,52 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
             affine_img[ou].alpha = base_img[i * image_width + j].alpha;
         }
     }
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            printf("%f\t", Inv_Matrix[i][j]);
+        }
+        printf("\n");
+    }
+
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 3; j++) {
+            printf("%f\t", Matrix[i][j]);
+        }
+        printf("\n");
+    }
+    double I[3][1], O[3][1], vecA[3], vecB[3], inner_product;
     for (oY = 0; oY < palette_size; oY++) {
         noY = oY - (int) palette_size / 2;
         for (oX = 0; oX < palette_size; oX++) {
             noX = oX - (int) palette_size / 2;
+            I[0][0] = oX, I[1][0] = oY, I[2][0] = 1;
+            for (i = 0; i < 3; i++) {
+                for (j = 0; j < 1; j++) {
+                    for (k = 0; k < 3; k++) {
+                        vecA[k] = Inv_Matrix[i][k];
+                        vecB[k] = I[k][j];
+                    }
+                    inner_product = 0;
+                    for (k = 0; k < 3; k++) {
+                        inner_product += vecA[k] * vecB[k];
+                    }
+                    O[i][j] = inner_product;
+                }
+            }
+            rx = O[0][0];
 
-            rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
-                 palette_size / 2;
 
             ix = (int) (rx + 0.5);
             if (ix >= palette_size || ix < 0) continue;
-            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
-                 palette_size / 2;
+            ry = O[1][0];
+
             iy = (int) (ry + 0.5);
             if (iy >= palette_size || iy < 0)continue;
             affined_img[oX + oY * palette_size] = affine_img[ix + iy * palette_size];
         }
     }
     return affined_img;
-    // for (int i = 0; i < window_width; i++) {
-    //     for (int j = 0; j < window_height; j++) {
-    //         affine_img[j * window_width + i] = transparent;
-    //         affined_img[j * window_width + i] = transparent;
-    //     }
-    // }
-    // for (int i = 0; i < image_width; i++) {
-    //     for (int j = 0; j < image_height; j++) {
-    //         if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
-    //         if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
-    //         affine_img[(j + ((int) window_height - j) / 2) * image_width +
-    //                    i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
-    //     }
-    // }
-    // return affine_img;
-    test_img = malloc(sizeof(struct rgb) * image_height * image_width * 10);
-    for (oY = 0; oY < image_height; oY++) {
-        noY = oY - (int) image_height / 2;
-        for (oX = 0; oX < image_width; oX++) {
-            noX = oX - (int) image_width / 2;
-
-            rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
-                 image_width / 2;
-
-            ix = (int) (rx + 0.5);
-            if (ix >= image_width || ix < 0) continue;
-            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
-                 image_height / 2;
-            iy = (int) (ry + 0.5);
-            if (iy >= image_height || iy < 0)continue;
-            test_img[oX + oY * image_width] = base_img[ix + iy * image_width];
-        }
-    }
-    return test_img;
-
-
 }
 
-//struct rgb *process_img(struct rgb *base_img, unsigned int base_width, unsigned int base_height) {
-//    struct rgb OUT_RANGE = {255, 255, 255, 255};
-//    int i, j;
-//    int nRow, nCol;
-//    double dRow, dCol;
-//    int nOutRow, nOutCol, nInRow, nInCol;
-//    int nSample;
-//    double daAffCoef[6];
-//    struct rgb *return_array = malloc(base_width * base_height * sizeof(struct rgb));
-//    for (i = 0; i < nOutRow; i++) {
-//        for (j = 0; j < nOutCol; j++) {
-//            dCol = daAffCoef[0] * (double) j + daAffCoef[1] * (double) i + daAffCoef[2];
-//            dRow = daAffCoef[3] * (double) j + daAffCoef[4] * (double) i + daAffCoef[5];
-//            nRow = (int) floor(dRow + 0.5);
-//            nCol = (int) floor(dCol + 0.5);
-//
-//            //範囲のチェック
-//            if (nCol < 0 || nCol >= nInCol || nRow < 0 || nRow >= nInRow) {
-//                for (int k = 0; k < nSample; k++) {
-//                    return_array[i * nOutCol * nSample + j * nSample + k] = OUT_RANGE;
-//                }
-//            } else {
-//                for (int k = 0; k < nSample; k++) {
-//                    return_array[i * nOutCol * nSample + j * nSample + k] =
-//                            base_img[nRow * nInCol * nSample + nCol * nSample + k];
-//                }
-//            }
-//        }
-//    }
-//    return return_array;
-//}
 
-#pragma clang diagnostic pop
 #pragma clang diagnostic pop
