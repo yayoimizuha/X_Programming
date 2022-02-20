@@ -2,6 +2,8 @@
 // Created by tomokazu on 2022/02/16.
 //
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EndlessLoop"
 // https://daeudaeu.com/affine/#i-10
 
 #include <stdio.h>
@@ -53,8 +55,7 @@ struct rgb alpha_marge(int x, int y, struct rgb color,
                        unsigned short black_cell, unsigned short white_cell, unsigned short cell_size);
 
 struct rgb *process_img(struct rgb *base_img, struct affine_func,
-                        unsigned int window_width, unsigned int window_height,
-                        unsigned int image_width, unsigned int image_height);
+                        unsigned int palette_size, unsigned int image_width, unsigned int image_height);
 
 int main(int argc, char **argv) {
 
@@ -181,21 +182,25 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        struct affine_func affineFunc;
-        affineFunc.A0 = 0.5;
-        affineFunc.A1 = -0.5;
-        affineFunc.A2 = 0.5;
-        affineFunc.A3 = 1;
-        affineFunc.dx = (double) image_width / -2;
-        affineFunc.dy = (double) image_height / 2;
+        struct affine_func affineFuncRotate,affineFuncMove,affineFuncResize;
+        double r = (6 * M_PI) / 180;
+        affineFuncRotate.A0 = cos(r);
+        affineFuncRotate.A1 = -sin(r);
+        affineFuncRotate.A2 = sin(r);
+        affineFuncRotate.A3 = cos(r);
+        affineFuncRotate.A0 = 1.0 / 2;
+        affineFuncRotate.A1 = 0;
+        affineFuncRotate.A2 = 0;
+        affineFuncRotate.A3 = 1.0 / 2;
+        affineFuncRotate.dx = -(int)palette_size;//-(int) palette_size / (affineFunc.A0 * 2);
+        affineFuncRotate.dy = 0;//(double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
-            struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
-                                                        window_width, window_height,
-                                                        image_width, image_height);
-            for (int i = 0; i < image_width; i++) {
-                for (int j = 0; j < image_height; j++) {
-                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[j * image_width + i],
+            struct rgb *manipulated_array = process_img(pixel_array, affineFuncRotate,
+                                                        palette_size, image_width, image_height);
+            for (int i = 0; i < palette_size; i++) {
+                for (int j = 0; j < palette_size; j++) {
+                    struct rgb mixed_color = alpha_marge(i, j, manipulated_array[i * palette_size + j],
                                                          image_width, image_height,
                                                          window_width, window_height,
                                                          black_cell, white_cell, cell_size);
@@ -203,7 +208,7 @@ int main(int argc, char **argv) {
                             mixed_color.green * 256 +
                             mixed_color.blue;
                     XSetForeground(display, Multi_GC[omp_get_thread_num()], color);
-                    XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], i, j);
+                    XDrawPoint(display, pixmap, Multi_GC[omp_get_thread_num()], j, i);
 
                 }
             }
@@ -214,13 +219,13 @@ int main(int argc, char **argv) {
 
             XCopyArea(display, pixmap, window, Multi_GC[omp_get_thread_num()],
                       0, 0,
-                      image_width, image_height,
-                      (int) (window_width - image_width) / 2, (int) (window_height - image_height) / 2);
+                      palette_size, palette_size,
+                      (int) (window_width - palette_size) / 2, (int) (window_height - palette_size) / 2);
         }
 
 
         before_ww = window_width, before_wh = window_height, before_iw = image_width, before_ih = image_height;
-        usleep(15000);
+        usleep(150000);
 
     }
 
@@ -253,11 +258,10 @@ struct rgb alpha_marge(int x, int y, struct rgb color,
 
 
 struct rgb *process_img(struct rgb *base_img, struct affine_func option,
-                        unsigned int window_width, unsigned int window_height,
-                        unsigned int image_width, unsigned int image_height) {
+                        unsigned int palette_size, unsigned int image_width, unsigned int image_height) {
     double A[4], iA[4];
     A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
-    int m = (int) option.dx, n = (int) option.dy;
+    int m = (int) (option.dx * A[0]), n = (int) (option.dy * A[3]);
     int oX, oY, noX, noY, ix, iy, rx, ry, c;
     double det = A[0] * A[3] - A[1] * A[2];
     if (det == 0) {
@@ -269,23 +273,60 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     iA[2] = A[2] / det;
     iA[3] = A[0] / det;
     struct rgb *affine_img, *affined_img, *test_img;
-    affine_img = malloc(sizeof(struct rgb) * window_width * window_height);
-    affined_img = malloc(sizeof(struct rgb) * window_width * window_height);
+    affine_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
+    affined_img = (struct rgb *) malloc(sizeof(struct rgb) * palette_size * palette_size);
+    if (affined_img == NULL || affine_img == NULL)exit(-1);
+    for (int k = 0; k < palette_size * palette_size; k++) {
+        affine_img[k].red = affine_img[k].green = affine_img[k].blue = affine_img[k].alpha = 50;
+        affined_img[k].red = affined_img[k].green = affined_img[k].blue = affined_img[k].alpha = 60;
+        affined_img[k].red = 200;
+    }
+    printf("%lu\n", sizeof(struct rgb) * palette_size * palette_size);
+    int ou, a, b;
+    for (int i = 0; i < image_height; i++) {
+        a = (palette_size - image_height) / 2 + i;
+        for (int j = 0; j < image_width; j++) {
+            b = (palette_size - image_width) / 2 + j;
+            ou = a * palette_size + b;
+            //printf("%u\t%d\n", ou, j * image_width + i);
+            affine_img[ou].red = base_img[i * image_width + j].red;
+            affine_img[ou].green = base_img[i * image_width + j].green;
+            affine_img[ou].blue = base_img[i * image_width + j].blue;
+            affine_img[ou].alpha = base_img[i * image_width + j].alpha;
+        }
+    }
+    for (oY = 0; oY < palette_size; oY++) {
+        noY = oY - (int) palette_size / 2;
+        for (oX = 0; oX < palette_size; oX++) {
+            noX = oX - (int) palette_size / 2;
 
-    for (int i = 0; i < window_width; i++) {
-        for (int j = 0; j < window_height; j++) {
-            affine_img[j * window_width + i] = transparent;
-            affined_img[j * window_width + i] = transparent;
+            rx = (double) noX * iA[0] + (double) noY * iA[1] - (double) m * iA[0] - (double) n * iA[1] -
+                 palette_size / 2;
+
+            ix = (int) (rx + 0.5);
+            if (ix >= palette_size || ix < 0) continue;
+            ry = (double) noX * iA[2] + (double) noY * iA[3] - (double) m * iA[2] - (double) n * iA[3] +
+                 palette_size / 2;
+            iy = (int) (ry + 0.5);
+            if (iy >= palette_size || iy < 0)continue;
+            affined_img[oX + oY * palette_size] = affine_img[ix + iy * palette_size];
         }
     }
-    for (int i = 0; i < image_width; i++) {
-        for (int j = 0; j < image_height; j++) {
-            if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
-            if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
-            affine_img[(j + ((int) window_height - j) / 2) * image_width +
-                       i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
-        }
-    }
+    return affined_img;
+    // for (int i = 0; i < window_width; i++) {
+    //     for (int j = 0; j < window_height; j++) {
+    //         affine_img[j * window_width + i] = transparent;
+    //         affined_img[j * window_width + i] = transparent;
+    //     }
+    // }
+    // for (int i = 0; i < image_width; i++) {
+    //     for (int j = 0; j < image_height; j++) {
+    //         if (((int) window_height - j) <= 0 || ((int) window_width - i) <= 0)continue;
+    //         if (((int) window_height - j) > window_height || ((int) window_width - i) > window_width) continue;
+    //         affine_img[(j + ((int) window_height - j) / 2) * image_width +
+    //                    i + ((int) window_width - i) / 2] = base_img[j * image_width + i];
+    //     }
+    // }
     // return affine_img;
     test_img = malloc(sizeof(struct rgb) * image_height * image_width * 10);
     for (oY = 0; oY < image_height; oY++) {
@@ -342,4 +383,5 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
 //    return return_array;
 //}
 
+#pragma clang diagnostic pop
 #pragma clang diagnostic pop
