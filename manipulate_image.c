@@ -182,17 +182,17 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        struct affine_func affineFuncRotate,affineFuncMove,affineFuncResize;
+        struct affine_func affineFuncRotate, affineFuncMove, affineFuncResize;
         double r = (6 * M_PI) / 180;
         affineFuncRotate.A0 = cos(r);
         affineFuncRotate.A1 = -sin(r);
         affineFuncRotate.A2 = sin(r);
         affineFuncRotate.A3 = cos(r);
-        affineFuncRotate.A0 = 1.0 / 2;
-        affineFuncRotate.A1 = 0;
-        affineFuncRotate.A2 = 0;
-        affineFuncRotate.A3 = 1.0 / 2;
-        affineFuncRotate.dx = -(int)palette_size;//-(int) palette_size / (affineFunc.A0 * 2);
+        affineFuncRotate.A0 = 0.48296291314453;
+        affineFuncRotate.A1 = -0.12940952255126;
+        affineFuncRotate.A2 = 0.12940952255126;
+        affineFuncRotate.A3 = 0.48296291314453;
+        affineFuncRotate.dx = -(int) palette_size;//-(int) palette_size / (affineFunc.A0 * 2);
         affineFuncRotate.dy = 0;//(double) (window_height * 2 - image_height) / 2;
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
