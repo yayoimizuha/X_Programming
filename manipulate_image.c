@@ -6,7 +6,6 @@
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
-// https://daeudaeu.com/affine/#i-10
 
 #include <stdio.h>
 #include <stdlib.h>
