@@ -11,6 +11,7 @@
 #include <wand/MagickWand.h>
 #include <malloc.h>
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/Xutil.h>
 #include <omp.h>
 #include <math.h>
@@ -39,12 +40,13 @@ struct rgb {
     unsigned short alpha;
 };
 struct affine_func {
-    double A0;
-    double A1;
-    double A2;
-    double A3;
-    double dx;
-    double dy;
+    double ScaleX;
+    double ScaleY;
+    double DisplaceX;
+    double DisplaceY;
+    double Rotate_Angle;
+    bool FlipX;
+    bool FlipY;
 };
 
 const struct rgb transparent = {0, 0, 0, 0};
@@ -123,6 +125,8 @@ int main(int argc, char **argv) {
     omp_set_num_threads(omp_get_max_threads());
     Window window;
     Window root;
+    KeySym keySym;
+    XEvent xEvent;
     int screen;
     unsigned long white, black;
     display = XOpenDisplay("");
@@ -155,12 +159,25 @@ int main(int argc, char **argv) {
 
     Pixmap pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3, 24);
     Pixmap back_pixmap = XCreatePixmap(display, window, palette_size * 3, palette_size * 3, 24);
+    XWindowAttributes windowAttributes;
 
+    XSelectInput(display, window, ButtonPressMask | ButtonReleaseMask | KeyPressMask);
 
     unsigned int color, count = 2;
     while (1) {
-        XSelectInput(display, window, ButtonPressMask | ButtonReleaseMask | KeyPressMask);
-        XWindowAttributes windowAttributes;
+        while (XPending(display)) {
+            XNextEvent(display, &xEvent);
+            if (xEvent.type == KeyPress) {
+                keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 0, 0);
+                printf("%lu\n", keySym);
+                keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 1, 0);
+                printf("%lu\n", keySym);
+                keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 0, 1);
+                printf("%lu\n", keySym);
+            }
+        }
+
+        printf("\n");
         XGetWindowAttributes(display, window, &windowAttributes);
         window_width = windowAttributes.width;
         window_height = windowAttributes.height;
@@ -182,21 +199,19 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        struct affine_func affineFuncRotate, affineFuncMove, affineFuncResize;
-        double r = (6 * M_PI) / 180;
-        affineFuncRotate.A0 = cos(r);
-        affineFuncRotate.A1 = -sin(r);
-        affineFuncRotate.A2 = sin(r);
-        affineFuncRotate.A3 = cos(r);
-        affineFuncRotate.A0 = 0.48296291314453;
-        affineFuncRotate.A1 = -0.12940952255126;
-        affineFuncRotate.A2 = 0.12940952255126;
-        affineFuncRotate.A3 = 0.48296291314453;
-        affineFuncRotate.dx = -(int) palette_size;//-(int) palette_size / (affineFunc.A0 * 2);
-        affineFuncRotate.dy = 0;//(double) (window_height * 2 - image_height) / 2;
+        struct affine_func affineFunc = {
+                .ScaleX = 0.4,
+                .ScaleY = 0.4,
+                .DisplaceX = 0,
+                .DisplaceY = 0,
+                .Rotate_Angle = 0,
+                .FlipX = False,
+                .FlipY = True
+        };
+
         if (image_change || window_change) {
             if (image_change) printf("[%ld]\tImage Changed\n", time(NULL));
-            struct rgb *manipulated_array = process_img(pixel_array, affineFuncRotate,
+            struct rgb *manipulated_array = process_img(pixel_array, affineFunc,
                                                         palette_size, image_width, image_height);
             for (int i = 0; i < palette_size; i++) {
                 for (int j = 0; j < palette_size; j++) {
@@ -225,7 +240,7 @@ int main(int argc, char **argv) {
 
 
         before_ww = window_width, before_wh = window_height, before_iw = image_width, before_ih = image_height;
-        usleep(150000);
+        usleep(15000);
 
     }
 
@@ -259,20 +274,19 @@ struct rgb alpha_marge(int x, int y, struct rgb color,
 
 struct rgb *process_img(struct rgb *base_img, struct affine_func option,
                         unsigned int palette_size, unsigned int image_width, unsigned int image_height) {
-    double A[4], iA[4];
-    A[0] = option.A0, A[1] = option.A1, A[2] = option.A2, A[3] = option.A3;
-
-    int oX, oY, noX, noY, ix, iy, rx, ry, c, i, j, k;
-    int PosMove = palette_size / 2;
+    int oX, oY, ix, iy, rx, ry, i, j, k;
+    int PosMove = (int) palette_size / 2;
     double Pos[3][3] = {
             {1, 0, PosMove},
             {0, 1, PosMove},
             {0, 0, 1}
     };
+    if (option.FlipX == True)option.ScaleX *= -1;
+    if (option.FlipY == True)option.ScaleY *= -1;
     double Resize[3][3] = {
-            {4, 0, 0},
-            {0, 4, 0},
-            {0, 0, 1}
+            {option.ScaleX, 0,             0},
+            {0,             option.ScaleY, 0},
+            {0,             0,             1}
     };
     double Pos_Resize[3][3];
     for (i = 0; i < 3; i++) {
@@ -284,8 +298,8 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
         }
     }
     double Move[3][3] = {
-            {1, 0, 100},
-            {0, 1, 100},
+            {1, 0, option.DisplaceX},
+            {0, 1, -option.DisplaceY},
             {0, 0, 1}
     };
     double Pos_Resize_Move[3][3];
@@ -297,7 +311,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
             }
         }
     }
-    double rotate = 12;
+    double rotate = option.Rotate_Angle;
     rotate = rotate * M_PI / 180;
     double Rotate[3][3] = {
             {cos(rotate),  sin(rotate), 0},
@@ -336,7 +350,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
                  - Matrix[0][1] * Matrix[1][0] * Matrix[2][2]
                  - Matrix[0][0] * Matrix[1][2] * Matrix[2][1];
     if (det == 0) {
-        printf("divided zero.\n");
+        printf("divided zero!!!!\n");
         return 0;
     }
     double Inv_Matrix[3][3];
@@ -358,7 +372,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
         affined_img[k].red = affined_img[k].green = affined_img[k].blue = affined_img[k].alpha = 60;
         affined_img[k].red = 200;
     }
-    printf("%lu\n", sizeof(struct rgb) * palette_size * palette_size);
+    printf("Palette size:\t%lu\n", sizeof(struct rgb) * palette_size * palette_size);
     int ou, a, b;
     for (int i = 0; i < image_height; i++) {
         a = (palette_size - image_height) / 2 + i;
@@ -372,13 +386,14 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
             affine_img[ou].alpha = base_img[i * image_width + j].alpha;
         }
     }
+    printf("Affine Matrix.\n");
     for (i = 0; i < 3; i++) {
         for (j = 0; j < 3; j++) {
             printf("%f\t", Inv_Matrix[i][j]);
         }
         printf("\n");
     }
-
+    printf("\nInvert Matrix.\n");
     for (i = 0; i < 3; i++) {
         for (j = 0; j < 3; j++) {
             printf("%f\t", Matrix[i][j]);
@@ -387,9 +402,7 @@ struct rgb *process_img(struct rgb *base_img, struct affine_func option,
     }
     double I[3][1], O[3][1], vecA[3], vecB[3], inner_product;
     for (oY = 0; oY < palette_size; oY++) {
-        noY = oY - (int) palette_size / 2;
         for (oX = 0; oX < palette_size; oX++) {
-            noX = oX - (int) palette_size / 2;
             I[0][0] = oX, I[1][0] = oY, I[2][0] = 1;
             for (i = 0; i < 3; i++) {
                 for (j = 0; j < 1; j++) {
