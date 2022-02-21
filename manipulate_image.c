@@ -135,6 +135,7 @@ int main(int argc, char **argv) {
     screen = DefaultScreen(display);
     white = WhitePixel(display, screen);
     black = BlackPixel(display, screen);
+    char ScaleBuf[100], MoveBuf[200], RotateBuf[100];
 
     window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 2, black, white);
 
@@ -171,6 +172,23 @@ int main(int argc, char **argv) {
     XAutoRepeatOff(display);
     Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(display, window, &wm_delete_window, 1);
+
+    XFontSet fs;
+    char **missing, *def_return;
+    int missing_count, i;
+
+
+    fs = XCreateFontSet(display, "-*-*-medium-r-normal-*-32-*-*-*-*-*-*-*", &missing, &missing_count, &def_return);
+    if (missing_count != 0) {
+        for (i = 0; i < missing_count; i++) {
+            printf("missing 0: %d\t%s\n", i, missing[i]);
+        }
+        if (def_return != NULL) {
+            printf("Default font: %s\n", def_return);
+        }
+    } else {
+        printf("No missing font\n");
+    }
 
     unsigned int color;
     while (1) {
@@ -241,12 +259,12 @@ int main(int argc, char **argv) {
                     UserScaleY *= 1.25;
                 }
 
-                if (input[0] == '-') {
+                if (input[0] == '-' && xEvent.xkey.state == 0) {
                     UserScaleX *= 0.8;
                     UserScaleY *= 0.8;
-                } else if (input[0] == '+' && xEvent.xkey.state == 4) {
+                } else if (input[0] == '-' && xEvent.xkey.state == 4) {
                     UserScaleX *= 0.8;
-                } else if (input[0] == '+' && xEvent.xkey.state == 8) {
+                } else if (input[0] == '-' && xEvent.xkey.state == 8) {
                     UserScaleY *= 0.8;
                 }
 
@@ -271,6 +289,9 @@ int main(int argc, char **argv) {
             }
 
         }
+        snprintf(ScaleBuf, 100, "X Scale: %f    Y Scale: %f", UserScaleX, UserScaleY);
+        snprintf(MoveBuf, 100, "X Displace: %d    Y Displace:    %d", UserDisplaceX, UserDisplaceY);
+        snprintf(RotateBuf, 100, "Angle(angle): %d", UserAngle);
 
         XGetWindowAttributes(display, window, &windowAttributes);
         window_width = windowAttributes.width;
@@ -342,6 +363,11 @@ int main(int argc, char **argv) {
         }
 
         before_ww = window_width, before_wh = window_height, before_iw = image_width, before_ih = image_height;
+        XSetForeground(display, Multi_GC[0], 0x0);
+        XmbDrawString(display, window, fs, Multi_GC[0], 10, 30, ScaleBuf, (int) strlen(ScaleBuf));
+        XmbDrawString(display, window, fs, Multi_GC[0], 10, 60, MoveBuf, (int) strlen(MoveBuf));
+        XmbDrawString(display, window, fs, Multi_GC[0], 10, 90, RotateBuf, (int) strlen(RotateBuf));
+
 
         usleep(15000);
     }
