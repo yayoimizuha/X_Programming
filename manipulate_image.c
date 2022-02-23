@@ -22,6 +22,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <libgen.h>
+#include "no_image.h"
+
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
@@ -70,15 +72,23 @@ int main(int argc, char **argv) {
 
     if (argc != 2) {
         (void) fprintf(stdout, "Usage: image_view [image path]\n");
-        exit(-1);
+        MagickWandGenesis();
+        magick_wand = NewMagickWand();
+        status = MagickReadImageBlob(magick_wand, tmp_png, sizeof(tmp_png));
+        argv[1] = "No Image";
+
+        //exit(-1);
+
+    } else {
+        MagickWandGenesis();
+        magick_wand = NewMagickWand();
+        status = MagickReadImage(magick_wand, argv[1]);
+        printf("image path: %s\n", argv[1]);
     }
     /*
       Read an image.
     */
-    MagickWandGenesis();
-    magick_wand = NewMagickWand();
-    status = MagickReadImage(magick_wand, argv[1]);
-    printf("image path: %s\n", argv[1]);
+
 
     if (status == MagickFalse) ThrowWandException(magick_wand);
 
@@ -150,9 +160,11 @@ int main(int argc, char **argv) {
     XMapWindow(display, window);
 
     XTextProperty w_info;
-    w_info.value = (unsigned char *) basename(argv[1]);
+    char win_str[200];
+    snprintf(win_str, 200, "%s \t %lux%lu", basename(argv[1]), image_width, image_height);
+    w_info.value = (unsigned char *) win_str;
     w_info.encoding = XA_STRING;
-    w_info.nitems = strlen(argv[1]);
+    w_info.nitems = strlen(win_str);
     w_info.format = 8;
     XSetWMName(display, window, &w_info);
 
@@ -212,11 +224,11 @@ int main(int argc, char **argv) {
                 if (realloc(input, sizeof(char) * input_length) == NULL)exit(-1);
                 UserChange = True;
                 keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 0, 0);
-                printf("0,0\t%lu\n", keySym);
+                printf("Key Status:\n\t0,0\t%lu\n", keySym);
                 keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 1, 0);
-                printf("1,0\t%lu\n", keySym);
+                printf("\t1,0\t%lu\n", keySym);
                 keySym = XkbKeycodeToKeysym(display, xEvent.xkey.keycode, 0, 1);
-                printf("0,1\t%lu\n", keySym);
+                printf("\t0,1\t%lu\n", keySym);
                 printf("state:\t%d\n", xEvent.xkey.state);
 
                 printf("\n");
