@@ -14,12 +14,14 @@
 #include <X11/Xlib.h>
 #include <X11/XKBlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include <omp.h>
 #include <math.h>
 #include <time.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <libgen.h>
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "EndlessLoop"
@@ -67,8 +69,8 @@ int main(int argc, char **argv) {
     MagickWand *magick_wand;
 
     if (argc != 2) {
-        (void) fprintf(stdout, "Usage: %s image thumbnail\n", argv[0]);
-        exit(0);
+        (void) fprintf(stdout, "Usage: image_view [image path]\n");
+        exit(-1);
     }
     /*
       Read an image.
@@ -76,6 +78,7 @@ int main(int argc, char **argv) {
     MagickWandGenesis();
     magick_wand = NewMagickWand();
     status = MagickReadImage(magick_wand, argv[1]);
+    printf("image path: %s\n", argv[1]);
 
     if (status == MagickFalse) ThrowWandException(magick_wand);
 
@@ -146,6 +149,12 @@ int main(int argc, char **argv) {
 
     XMapWindow(display, window);
 
+    XTextProperty w_info;
+    w_info.value = (unsigned char *) basename(argv[1]);
+    w_info.encoding = XA_STRING;
+    w_info.nitems = strlen(argv[1]);
+    w_info.format = 8;
+    XSetWMName(display, window, &w_info);
 
     size_t palette_size;
     bool image_change = True, window_change = True;
@@ -166,7 +175,7 @@ int main(int argc, char **argv) {
     int UserDisplaceX = 0, UserDisplaceY = 0, UserAngle = 0;
     double UserScaleX = 1, UserScaleY = 1;
     bool UserChange;
-    bool UserFlipX, UserFlipY;
+    bool UserFlipX = False, UserFlipY = False;
     int input_length = 1;
     char *input = (char *) malloc(sizeof(char) * input_length);
     XAutoRepeatOff(display);
